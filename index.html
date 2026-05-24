@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>요거트월드 재고 체크</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --pink-light: #fce4ec; --pink-mid: #f48fb1; --pink-main: #e91e8c; --pink-dark: #880e4f;
+    --danger: #e53935; --bg: #fff8f9; --card-bg: #ffffff; --border: #f8bbd0;
+    --text: #2d1b2e; --text-sub: #7b5c70; --radius: 14px;
+  }
+  body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); min-height: 100vh; color: var(--text); }
+
+  .header { background: linear-gradient(135deg, #e91e8c 0%, #ff4081 100%); padding: 28px 20px 24px; text-align: center; position: relative; overflow: hidden; }
+  .header::before { content: ''; position: absolute; top: -30px; right: -30px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border-radius: 50%; }
+  .header h1 { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.5px; position: relative; z-index: 1; }
+  .header .date { font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 6px; position: relative; z-index: 1; }
+  .strawberry-deco { position: absolute; top: 12px; right: 60px; font-size: 28px; opacity: 0.6; z-index: 1; }
+
+  .main { padding: 20px 16px 140px; max-width: 480px; margin: 0 auto; }
+  .section-title { font-size: 13px; font-weight: 700; color: var(--text-sub); letter-spacing: 0.5px; margin: 20px 0 10px; display: flex; align-items: center; justify-content: space-between; }
+  .section-title span { font-size: 11px; text-transform: uppercase; }
+
+  /* Summary */
+  .summary-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .summary-card { flex: 1; background: var(--card-bg); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 14px 12px; text-align: center; }
+  .summary-card.danger-card { border-color: #ef9a9a; background: #fff5f5; }
+  .summary-num { font-size: 28px; font-weight: 700; color: var(--text); }
+  .summary-card.danger-card .summary-num { color: var(--danger); }
+  .summary-label { font-size: 11px; color: var(--text-sub); margin-top: 2px; font-weight: 500; }
+
+  /* Inventory Card */
+  .inv-card { background: var(--card-bg); border: 1.5px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s; }
+  .inv-card.danger { border-color: #ef9a9a; background: #fff5f5; }
+  .inv-card.out { border-color: #ef9a9a; background: #fff0f0; }
+  .inv-card-inner { display: flex; align-items: center; padding: 14px 16px; gap: 12px; }
+  .inv-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--pink-light); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; cursor: pointer; transition: transform 0.15s; }
+  .inv-icon:hover { transform: scale(1.1); }
+  .inv-card.danger .inv-icon { background: #ffebee; }
+  .inv-info { flex: 1; min-width: 0; }
+  .inv-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .inv-unit { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+  .inv-control { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
+  .qty-btn { width: 32px; height: 32px; border: 1.5px solid var(--border); background: var(--bg); border-radius: 8px; font-size: 18px; font-weight: 700; color: var(--pink-main); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; line-height: 1; }
+  .qty-btn:active { background: var(--pink-light); }
+  .qty-display { min-width: 48px; text-align: center; font-size: 20px; font-weight: 700; color: var(--text); padding: 0 6px; }
+  .qty-display.danger-qty { color: var(--danger); }
+
+  /* Edit/Delete buttons */
+  .card-actions { display: flex; gap: 6px; margin-left: 6px; }
+  .action-btn { width: 28px; height: 28px; border-radius: 8px; border: 1.5px solid var(--border); background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: background 0.15s; flex-shrink: 0; }
+  .action-btn.edit-btn:hover { background: #fff9c4; border-color: #f9a825; }
+  .action-btn.del-btn:hover { background: #ffebee; border-color: #ef9a9a; }
+
+  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 10px; }
+  .status-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .badge-ok { background: #e8f5e9; color: #2e7d32; }
+  .badge-low { background: #ffebee; color: #c62828; }
+  .badge-out { background: #b71c1c; color: #fff; }
+  .last-update { font-size: 11px; color: var(--text-sub); }
+
+  /* Add Item Button */
+  .add-item-btn { width: 100%; padding: 14px; border: 2px dashed var(--pink-mid); background: transparent; border-radius: var(--radius); font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 700; color: var(--pink-main); cursor: pointer; margin-top: 4px; transition: background 0.15s; }
+  .add-item-btn:hover { background: var(--pink-light); }
+
+  /* Bottom Buttons */
+  .bottom-bar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: rgba(255,248,249,0.97); backdrop-filter: blur(10px); border-top: 1.5px solid var(--border); padding: 14px 16px 20px; display: flex; gap: 10px; }
+  .btn { flex: 1; padding: 14px; border-radius: 12px; font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 700; border: none; cursor: pointer; transition: transform 0.1s, opacity 0.15s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-save { background: #fff; color: var(--pink-main); border: 1.5px solid var(--pink-main); }
+  .btn-order { background: linear-gradient(135deg, #e91e8c 0%, #ff4081 100%); color: #fff; }
+
+  /* Toast */
+  .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px); background: #333; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 500; transition: transform 0.3s ease; z-index: 9999; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Modal base */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 24px 24px 0 0; padding: 24px 20px 40px; width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto; }
+  .modal-handle { width: 40px; height: 4px; background: #ddd; border-radius: 2px; margin: 0 auto 20px; }
+  .modal h2 { font-size: 18px; font-weight: 700; color: var(--pink-dark); margin-bottom: 16px; }
+  .modal-sub { font-size: 12px; color: var(--text-sub); margin-bottom: 20px; margin-top: -12px; }
+
+  /* Order modal */
+  .order-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #fff5f5; border: 1.5px solid #ffcdd2; border-radius: 10px; margin-bottom: 8px; }
+  .order-item-left { display: flex; align-items: center; gap: 10px; }
+  .order-item-icon { font-size: 18px; }
+  .order-item-name { font-size: 14px; font-weight: 700; color: var(--text); }
+  .order-item-qty { font-size: 12px; color: var(--danger); font-weight: 600; margin-top: 2px; }
+  .order-badge { background: #ffebee; color: #c62828; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+  .order-badge.out-badge { background: #b71c1c; color: #fff; }
+  .modal-empty { text-align: center; padding: 30px; color: var(--text-sub); font-size: 14px; }
+  .modal-empty .big { font-size: 36px; display: block; margin-bottom: 10px; }
+  .modal-close { width: 100%; padding: 14px; margin-top: 16px; background: linear-gradient(135deg, #e91e8c 0%, #ff4081 100%); color: #fff; border: none; border-radius: 12px; font-family: 'Noto Sans KR', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .copy-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: #fff; border: 1.5px solid var(--border); border-radius: 8px; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 600; color: var(--text-sub); cursor: pointer; margin-top: 12px; width: 100%; justify-content: center; }
+
+  /* Edit/Add Item Modal */
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 13px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; display: block; }
+  .form-input { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'Noto Sans KR', sans-serif; font-size: 15px; color: var(--text); background: #fff; outline: none; }
+  .form-input:focus { border-color: var(--pink-main); }
+  .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-top: 8px; }
+  .emoji-opt { width: 100%; aspect-ratio: 1; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .emoji-opt.selected { border-color: var(--pink-main); background: var(--pink-light); }
+  .emoji-opt:hover { background: var(--pink-light); }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  .modal-btn-row { display: flex; gap: 10px; margin-top: 20px; }
+  .modal-btn { flex: 1; padding: 13px; border-radius: 12px; font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; border: none; }
+  .modal-btn-cancel { background: #f5f5f5; color: #666; }
+  .modal-btn-confirm { background: linear-gradient(135deg, #e91e8c 0%, #ff4081 100%); color: #fff; }
+  .modal-btn-danger { background: #ffebee; color: #c62828; border: 1.5px solid #ffcdd2; }
+
+  /* Threshold row */
+  .threshold-row { display: flex; align-items: center; gap: 10px; }
+  .threshold-row input[type=range] { flex: 1; accent-color: var(--pink-main); }
+  .threshold-val { font-size: 15px; font-weight: 700; color: var(--pink-main); min-width: 30px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="strawberry-deco">🍓</div>
+  <h1>🍦 요거트월드 화이팅!</h1>
+  <div class="date" id="today-date"></div>
+</div>
+
+<div class="main">
+  <div class="section-title"><span>📊 재고 현황 요약</span></div>
+  <div class="summary-row">
+    <div class="summary-card">
+      <div class="summary-num" id="total-count">—</div>
+      <div class="summary-label">전체 품목</div>
+    </div>
+    <div class="summary-card danger-card">
+      <div class="summary-num" id="danger-count">—</div>
+      <div class="summary-label">🔴 부족/품절</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-num" id="ok-count">—</div>
+      <div class="summary-label">✅ 충분</div>
+    </div>
+  </div>
+
+  <div class="section-title"><span>📦 재고 체크</span></div>
+  <div id="inv-list"></div>
+  <button class="add-item-btn" onclick="openAddModal()">＋ 품목 추가하기</button>
+</div>
+
+<div class="bottom-bar">
+  <button class="btn btn-save" onclick="saveData()">💾 저장하기</button>
+  <button class="btn btn-order" onclick="openOrderModal()">📋 사장님께 전달하기</button>
+</div>
+
+<!-- Order Modal -->
+<div class="modal-overlay" id="order-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>📋 주문 요청 리스트</h2>
+    <div class="modal-sub" id="order-date-sub"></div>
+    <div id="order-list"></div>
+    <button class="copy-btn" onclick="copyOrder()">📋 텍스트로 복사하기</button>
+    <button class="modal-close" onclick="closeModal('order-modal')">확인</button>
+  </div>
+</div>
+
+<!-- Add/Edit Item Modal -->
+<div class="modal-overlay" id="item-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="item-modal-title">➕ 품목 추가</h2>
+    <div class="form-group">
+      <label class="form-label">아이콘 선택</label>
+      <div class="emoji-grid" id="emoji-grid"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">품목 이름</label>
+      <input class="form-input" id="item-name" type="text" placeholder="예: 딸기베이스" maxlength="20">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">단위</label>
+        <input class="form-input" id="item-unit" type="text" placeholder="예: 팩" maxlength="5">
+      </div>
+      <div class="form-group">
+        <label class="form-label">초기 수량</label>
+        <input class="form-input" id="item-qty" type="number" min="0" max="999" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">부족 기준 수량 (<span id="threshold-label">2</span>개 이하)</label>
+      <div class="threshold-row">
+        <input type="range" min="1" max="10" value="2" id="item-threshold" oninput="document.getElementById('threshold-label').textContent=this.value">
+        <div class="threshold-val" id="threshold-display">2</div>
+      </div>
+    </div>
+    <div class="modal-btn-row" id="item-modal-btns"></div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal" style="padding-bottom: 30px;">
+    <div class="modal-handle"></div>
+    <h2>🗑️ 품목 삭제</h2>
+    <p style="font-size:14px; color:var(--text-sub); margin-bottom:20px;" id="delete-confirm-text"></p>
+    <div class="modal-btn-row">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('delete-modal')">취소</button>
+      <button class="modal-btn modal-btn-danger" onclick="confirmDelete()">삭제하기</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const EMOJIS = ['🍓','🫐','🍇','🍊','🥭','🍋','🍑','🍒','🥝','🍍','🥥','🍌','🥣','🥤','🥄','🍯','🍫','🥛','🍦','🧁','🧃','🧊','🫙','📦','🛒','⭐','🌸','✨'];
+
+const DEFAULT_ITEMS = [
+  { id: 'strawberry', name: '딸기베이스', icon: '🍓', unit: '팩', threshold: 2, defaultQty: 5 },
+  { id: 'blueberry', name: '블루베리베이스', icon: '🫐', unit: '팩', threshold: 2, defaultQty: 5 },
+  { id: 'granola', name: '그래놀라', icon: '🥣', unit: '봉', threshold: 2, defaultQty: 4 },
+  { id: 'cup_large', name: '컵 (대)', icon: '🥤', unit: '개', threshold: 2, defaultQty: 20 },
+  { id: 'cup_small', name: '컵 (소)', icon: '🥤', unit: '개', threshold: 2, defaultQty: 20 },
+  { id: 'spoon', name: '스푼', icon: '🥄', unit: '개', threshold: 2, defaultQty: 30 },
+  { id: 'honey', name: '꿀소스', icon: '🍯', unit: '통', threshold: 2, defaultQty: 3 },
+  { id: 'choco', name: '초코소스', icon: '🍫', unit: '통', threshold: 2, defaultQty: 3 },
+  { id: 'condensed', name: '연유', icon: '🥛', unit: '통', threshold: 2, defaultQty: 3 },
+  { id: 'frozen_yogurt', name: '냉동요거트', icon: '🍦', unit: '팩', threshold: 2, defaultQty: 6 },
+];
+
+let items = [];
+let quantities = {};
+let editingId = null;
+let deletingId = null;
+let selectedEmoji = '🍓';
+
+function loadData() {
+  const savedItems = localStorage.getItem('yowol_items');
+  const savedQty = localStorage.getItem('yowol_inv');
+  items = savedItems ? JSON.parse(savedItems) : JSON.parse(JSON.stringify(DEFAULT_ITEMS));
+  quantities = savedQty ? JSON.parse(savedQty) : {};
+  items.forEach(item => {
+    if (quantities[item.id] === undefined) quantities[item.id] = item.defaultQty || 0;
+  });
+}
+
+function saveData() {
+  localStorage.setItem('yowol_items', JSON.stringify(items));
+  localStorage.setItem('yowol_inv', JSON.stringify(quantities));
+  showToast('✅ 재고가 저장되었습니다!');
+}
+
+function getStatus(qty, threshold) {
+  if (qty === 0) return 'out';
+  if (qty <= threshold) return 'low';
+  return 'ok';
+}
+
+function renderList() {
+  const container = document.getElementById('inv-list');
+  container.innerHTML = '';
+  let dangerCount = 0, okCount = 0;
+  items.forEach(item => {
+    const qty = quantities[item.id] || 0;
+    const status = getStatus(qty, item.threshold);
+    if (status !== 'ok') dangerCount++; else okCount++;
+    const cardClass = status === 'out' ? 'out' : status === 'low' ? 'danger' : '';
+    const qtyClass = status === 'out' || status === 'low' ? 'danger-qty' : '';
+    const badgeHtml = status === 'out'
+      ? '<span class="status-badge badge-out">품절</span>'
+      : status === 'low'
+      ? '<span class="status-badge badge-low">🔴 부족</span>'
+      : '<span class="status-badge badge-ok">✅ 충분</span>';
+    const div = document.createElement('div');
+    div.className = `inv-card ${cardClass}`;
+    div.innerHTML = `
+      <div class="inv-card-inner">
+        <div class="inv-icon" onclick="openEditModal('${item.id}')" title="아이콘 클릭해서 수정">${item.icon}</div>
+        <div class="inv-info">
+          <div class="inv-name">${item.name}</div>
+          <div class="inv-unit">단위: ${item.unit}</div>
+        </div>
+        <div class="inv-control">
+          <button class="qty-btn" onclick="changeQty('${item.id}', -1)">−</button>
+          <div class="qty-display ${qtyClass}" id="qty-${item.id}">${qty}</div>
+          <button class="qty-btn" onclick="changeQty('${item.id}', 1)">+</button>
+        </div>
+        <div class="card-actions">
+          <button class="action-btn edit-btn" onclick="openEditModal('${item.id}')" title="수정">✏️</button>
+          <button class="action-btn del-btn" onclick="openDeleteModal('${item.id}')" title="삭제">🗑️</button>
+        </div>
+      </div>
+      <div class="status-bar">
+        ${badgeHtml}
+        <span class="last-update">기준: ${item.threshold}개 이하 부족</span>
+      </div>`;
+    container.appendChild(div);
+  });
+  document.getElementById('total-count').textContent = items.length;
+  document.getElementById('danger-count').textContent = dangerCount;
+  document.getElementById('ok-count').textContent = okCount;
+}
+
+function changeQty(id, delta) {
+  quantities[id] = Math.max(0, (quantities[id] || 0) + delta);
+  renderList();
+}
+
+/* ---- Emoji grid ---- */
+function buildEmojiGrid(current) {
+  const grid = document.getElementById('emoji-grid');
+  grid.innerHTML = '';
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-opt' + (e === current ? ' selected' : '');
+    btn.textContent = e;
+    btn.onclick = () => {
+      selectedEmoji = e;
+      grid.querySelectorAll('.emoji-opt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    };
+    grid.appendChild(btn);
+  });
+  selectedEmoji = current;
+}
+
+/* ---- Add Modal ---- */
+function openAddModal() {
+  editingId = null;
+  document.getElementById('item-modal-title').textContent = '➕ 품목 추가';
+  document.getElementById('item-name').value = '';
+  document.getElementById('item-unit').value = '';
+  document.getElementById('item-qty').value = '0';
+  document.getElementById('item-threshold').value = 2;
+  document.getElementById('threshold-label').textContent = 2;
+  document.getElementById('threshold-display').textContent = 2;
+  buildEmojiGrid('🍓');
+  document.getElementById('item-modal-btns').innerHTML = `
+    <button class="modal-btn modal-btn-cancel" onclick="closeModal('item-modal')">취소</button>
+    <button class="modal-btn modal-btn-confirm" onclick="confirmItem()">추가하기</button>`;
+  document.getElementById('item-modal').classList.add('open');
+  setTimeout(() => document.getElementById('item-name').focus(), 300);
+}
+
+/* ---- Edit Modal ---- */
+function openEditModal(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  editingId = id;
+  document.getElementById('item-modal-title').textContent = '✏️ 품목 수정';
+  document.getElementById('item-name').value = item.name;
+  document.getElementById('item-unit').value = item.unit;
+  document.getElementById('item-qty').value = quantities[id] || 0;
+  document.getElementById('item-threshold').value = item.threshold;
+  document.getElementById('threshold-label').textContent = item.threshold;
+  document.getElementById('threshold-display').textContent = item.threshold;
+  buildEmojiGrid(item.icon);
+  document.getElementById('item-modal-btns').innerHTML = `
+    <button class="modal-btn modal-btn-cancel" onclick="closeModal('item-modal')">취소</button>
+    <button class="modal-btn modal-btn-confirm" onclick="confirmItem()">저장하기</button>`;
+  document.getElementById('item-modal').classList.add('open');
+}
+
+function confirmItem() {
+  const name = document.getElementById('item-name').value.trim();
+  const unit = document.getElementById('item-unit').value.trim();
+  const qty = parseInt(document.getElementById('item-qty').value) || 0;
+  const threshold = parseInt(document.getElementById('item-threshold').value) || 2;
+  if (!name) { showToast('⚠️ 품목 이름을 입력해주세요!'); return; }
+  if (!unit) { showToast('⚠️ 단위를 입력해주세요!'); return; }
+  if (editingId) {
+    const item = items.find(i => i.id === editingId);
+    item.name = name; item.unit = unit; item.icon = selectedEmoji; item.threshold = threshold;
+    quantities[editingId] = qty;
+    showToast('✅ 품목이 수정됐어요!');
+  } else {
+    const id = 'item_' + Date.now();
+    items.push({ id, name, icon: selectedEmoji, unit, threshold, defaultQty: qty });
+    quantities[id] = qty;
+    showToast('✅ 품목이 추가됐어요!');
+  }
+  closeModal('item-modal');
+  renderList();
+  saveData();
+}
+
+/* ---- Delete ---- */
+function openDeleteModal(id) {
+  const item = items.find(i => i.id === id);
+  deletingId = id;
+  document.getElementById('delete-confirm-text').textContent = `"${item.name}" 품목을 삭제할까요? 이 작업은 되돌릴 수 없어요.`;
+  document.getElementById('delete-modal').classList.add('open');
+}
+
+function confirmDelete() {
+  items = items.filter(i => i.id !== deletingId);
+  delete quantities[deletingId];
+  closeModal('delete-modal');
+  renderList();
+  saveData();
+  showToast('🗑️ 품목이 삭제됐어요!');
+}
+
+/* ---- Order Modal ---- */
+function openOrderModal() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+  const timeStr = now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+  document.getElementById('order-date-sub').textContent = `${dateStr} ${timeStr} 기준`;
+  const lowItems = items.filter(item => getStatus(quantities[item.id] || 0, item.threshold) !== 'ok');
+  const listEl = document.getElementById('order-list');
+  listEl.innerHTML = '';
+  if (lowItems.length === 0) {
+    listEl.innerHTML = `<div class="modal-empty"><span class="big">🎉</span>모든 재고가 충분합니다!<br>주문이 필요한 품목이 없어요.</div>`;
+  } else {
+    lowItems.forEach(item => {
+      const qty = quantities[item.id] || 0;
+      const status = getStatus(qty, item.threshold);
+      const badgeClass = status === 'out' ? 'order-badge out-badge' : 'order-badge';
+      const qtyText = status === 'out' ? '품절' : `${qty}${item.unit} 남음`;
+      const div = document.createElement('div');
+      div.className = 'order-item';
+      div.innerHTML = `
+        <div class="order-item-left">
+          <div class="order-item-icon">${item.icon}</div>
+          <div><div class="order-item-name">${item.name}</div><div class="order-item-qty">${qtyText}</div></div>
+        </div>
+        <div class="${badgeClass}">${status === 'out' ? '품절' : '부족'}</div>`;
+      listEl.appendChild(div);
+    });
+  }
+  document.getElementById('order-modal').classList.add('open');
+}
+
+function copyOrder() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' });
+  const timeStr = now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+  const lowItems = items.filter(item => getStatus(quantities[item.id] || 0, item.threshold) !== 'ok');
+  if (lowItems.length === 0) { showToast('✅ 부족한 재고가 없습니다!'); return; }
+  let text = `[주문 필요 품목]\n${dateStr} ${timeStr} 기준\n\n`;
+  lowItems.forEach(item => {
+    const qty = quantities[item.id] || 0;
+    const status = getStatus(qty, item.threshold);
+    text += `• ${item.name} : ${status === 'out' ? '품절' : `${qty}${item.unit} 남음`}\n`;
+  });
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('📋 클립보드에 복사됐어요!'));
+  } else {
+    const el = document.createElement('textarea');
+    el.value = text; document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    showToast('📋 클립보드에 복사됐어요!');
+  }
+}
+
+/* ---- Helpers ---- */
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// threshold slider sync
+document.getElementById('item-threshold').addEventListener('input', function() {
+  document.getElementById('threshold-label').textContent = this.value;
+  document.getElementById('threshold-display').textContent = this.value;
+});
+
+// overlay click close
+['order-modal','item-modal','delete-modal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) closeModal(id);
+  });
+});
+
+document.getElementById('today-date').textContent =
+  new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+loadData();
+renderList();
+</script>
+</body>
+</html>
