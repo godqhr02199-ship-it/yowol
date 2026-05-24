@@ -194,7 +194,7 @@
     <div class="form-group">
       <label class="form-label">부족 기준 수량 (<span id="threshold-label">2</span>개 이하)</label>
       <div class="threshold-row">
-        <input type="range" min="1" max="10" value="2" id="item-threshold" oninput="document.getElementById('threshold-label').textContent=this.value">
+        <input type="range" min="0.5" max="10" step="0.5" value="2" id="item-threshold" oninput="syncThreshold(this.value)">
         <div class="threshold-val" id="threshold-display">2</div>
       </div>
     </div>
@@ -357,8 +357,9 @@ function openEditModal(id) {
   document.getElementById('item-unit').value = item.unit;
   document.getElementById('item-qty').value = quantities[id] || 0;
   document.getElementById('item-threshold').value = item.threshold;
-  document.getElementById('threshold-label').textContent = item.threshold;
-  document.getElementById('threshold-display').textContent = item.threshold;
+  const thDisplay = item.threshold % 1 === 0 ? String(item.threshold) : item.threshold.toFixed(1);
+  document.getElementById('threshold-label').textContent = thDisplay;
+  document.getElementById('threshold-display').textContent = thDisplay;
   buildEmojiGrid(item.icon);
   document.getElementById('item-modal-btns').innerHTML = `
     <button class="modal-btn modal-btn-cancel" onclick="closeModal('item-modal')">취소</button>
@@ -370,7 +371,7 @@ function confirmItem() {
   const name = document.getElementById('item-name').value.trim();
   const unit = document.getElementById('item-unit').value.trim();
   const qty = parseInt(document.getElementById('item-qty').value) || 0;
-  const threshold = parseInt(document.getElementById('item-threshold').value) || 2;
+  const threshold = parseFloat(document.getElementById('item-threshold').value) || 2;
   if (!name) { showToast('⚠️ 품목 이름을 입력해주세요!'); return; }
   if (!unit) { showToast('⚠️ 단위를 입력해주세요!'); return; }
   if (editingId) {
@@ -468,9 +469,14 @@ function showToast(msg) {
 }
 
 // threshold slider sync
+function syncThreshold(val) {
+  const v = parseFloat(val);
+  const display = v % 1 === 0 ? String(v) : v.toFixed(1);
+  document.getElementById('threshold-label').textContent = display;
+  document.getElementById('threshold-display').textContent = display;
+}
 document.getElementById('item-threshold').addEventListener('input', function() {
-  document.getElementById('threshold-label').textContent = this.value;
-  document.getElementById('threshold-display').textContent = this.value;
+  syncThreshold(this.value);
 });
 
 // overlay click close
